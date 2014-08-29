@@ -6,6 +6,7 @@ from threading import Thread
 import copy
 import json
 import requests
+from colorsys import hsv_to_rgb
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pylibcerebrum.serial_mux import SerialMux
 
@@ -52,8 +53,16 @@ barstatus = 'closed'
 ampelstate = ((0,0,0), (0,0,0))
 lastchange = time.time() - 180
 def animate():
-	global barstatus, lastchange, ampelstate
+	global barstatus, lastchange, ampelstate, g
+	hue = 0
 	while True:
+		if barstatus == 'google-zahlt':
+			_r,_g,_b = hsv_to_rgb(hue, 1, 1)
+			c = (int(_r*255), int(_g*255), int(_b*255))
+			(g.digital3.pwm, g.digital5.pwm, g.digital6.pwm), (g.digital9.pwm, g.digital10.pwm, g.digital11.pwm) = c, (0,0,0)
+			hue += 0.05
+			time.sleep(0.1)
+			continue
 		lookup = barstatus
 		if time.time() - lastchange < 180:
 			if barstatus == 'open':
