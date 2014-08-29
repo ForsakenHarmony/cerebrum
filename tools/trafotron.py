@@ -130,9 +130,13 @@ time.sleep(2)
 
 # Enable pull-up on Arduino analog pin 4
 g.analog4.state = 1
+g.digital2.state = 1
+g.digital12.state = 1
+g.digital13.state = 1
 oldval = -2*SEND_THRESHOLD
 oldbarstate = None
 newbarstate = None
+oldstrippen = None
 while True:
 	val = sum([ g.analog5.analog for i in range(AVG_SAMPLES)])/AVG_SAMPLES
 	if abs(val-oldval) > SEND_THRESHOLD:
@@ -142,6 +146,13 @@ while True:
 		newbarstate = 'closed'
 	else:
 		newbarstate = 'open'
+	strippen = (g.digital2.state, g.digital12.state, g.digital13.state)
+	if strippen != oldstrippen:
+		oldstrippen = strippen
+		try:
+			requests.post(CBEAM, data=json.dumps({'method': 'barschnur', 'params': list(strippen), 'id': 0}))
+		except requests.exceptions.ConnectionError:
+			pass
 	if newbarstate != oldbarstate:
 		oldbarstate = newbarstate
 
