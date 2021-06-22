@@ -5,21 +5,25 @@ import time
 from threading import Thread
 import copy
 import json
-import logging
 import requests
 from colorsys import hsv_to_rgb
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pylibcerebrum.serial_mux import SerialMux
 
-logger = logging.getLogger(__name__)
+import paho.mqtt.client as paho
 
 CBEAM			= 'http://c-beam.cbrp3.c-base.org:4254/rpc/'
+MQTT_SERVER             = 'c-beam.cbrp3.c-base.org'
+MQTT_PORT               = 1883
+MQTT_USER               = 'trafotron'
 HYPERBLAST		= 'http://10.0.1.23:1337/'
 CLOCC			= 'http://c-lab-lock.cbrp3.c-base.org:1337/'
 PORT			= '/dev/serial/by-id/usb-Arduino__www.arduino.cc__0043_7523230313535161C072-if00'
 BAUDRATE		= 115200
 AVG_SAMPLES		= 128
 SEND_THRESHOLD	= 3
+
+mqtt = paho.Client(MQTT_USER)
 
 s = SerialMux(PORT, BAUDRATE)
 print('discovering cerebrum devices')
@@ -30,7 +34,7 @@ print(results)
 print('opening first device')
 g = s.open(0)
 print('initializing device')
-#print(dir(g))
+print(dir(g))
 #bar status outputs
 for io in [g.digital3, g.digital5, g.digital6, g.digital9, g.digital10, g.digital11]:
 	io.direction = 1
@@ -99,6 +103,20 @@ def sendstate(value):
 	except requests.exceptions.ConnectionError:
 		pass
 
+def publish(topic, payload):
+    try:
+        #mqtt.username_pw_set(MQTT_USER, password=MQTT_PASS)
+        #if cfg.mqtt_server_tls:
+            #mqtt.tls_set(cfg.mqtt_server_cert, cert_reqs=ssl.CERT_OPTIONAL)
+            #mqtt.connect(cfg.mqtt_server, port=1884)
+        #else:
+            #mqtt.connect(cfg.mqtt_server, port=1883)
+        mqtt.connect(MQTT_SERVER, port=MQTT_PORT)
+        mqtt.publish(topic, payload)
+    except Exception as e:
+        print(e)
+        pass
+
 class AmpelHandler(BaseHTTPRequestHandler):
 	def do_POST(self):
 		global ampelstate
@@ -123,13 +141,13 @@ class AmpelHandler(BaseHTTPRequestHandler):
 				r,y,g = bool(r), bool(y), bool(g)
 				ampelstate = (r,y,g), (r,y,g)
 
-# HOST, PORT = '', 1337
-# server = HTTPServer((HOST, PORT), AmpelHandler)
-# t = Thread(target=server.serve_forever)
-# t.daemon = True
-# t.start()
+HOST, PORT = '', 1337
+server = HTTPServer((HOST, PORT), AmpelHandler)
+t = Thread(target=server.serve_forever)
+t.daemon = True
+t.start()
 
-# time.sleep(2)
+time.sleep(2)
 
 # Enable pull-up on Arduino analog pin 4
 g.analog4.state = 1
@@ -141,7 +159,6 @@ oldbarstate = None
 newbarstate = None
 oldstrippen = None
 while True:
-	time.sleep(1)
 	val = sum([ g.analog5.analog for i in range(AVG_SAMPLES)])/AVG_SAMPLES
 	if abs(val-oldval) > SEND_THRESHOLD:
 		oldval = val
@@ -153,16 +170,18 @@ while True:
 	strippen = (g.digital2.state, g.digital12.state, g.digital13.state)
 	if strippen != oldstrippen:
 		oldstrippen = strippen
-		try:
-			requests.post(CBEAM, data=json.dumps({'method': 'barschnur', 'params': list(strippen), 'id': 0}))
-		except requests.exceptions.ConnectionError:
-			pass
+		publish('bar/strippen', json.dumps({'method': 'barschnur', 'params': list(strippen), 'id': 0}))
+		#try:
+			#requests.post(CBEAM, data=json.dumps({'method': 'barschnur', 'params': list(strippen), 'id': 0}))
+		#except requests.exceptions.ConnectionError:
+			#pass
 	if newbarstate != oldbarstate:
 		oldbarstate = newbarstate
 
 		#comm with animation thread
 		barstatus = newbarstate
 		lastchange = time.time()
+		publish('bar/status', json.dumps({'method': 'barstatus', 'params': [newbarstate], 'id': 0}))
 
 		try:
 			requests.post(HYPERBLAST, data=json.dumps({'method': 'barstatus', 'params': [newbarstate], 'id': 0}))

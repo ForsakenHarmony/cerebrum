@@ -12,7 +12,7 @@ def read(filename):
 #You could be more specific.
 files = ["pylibcerebrum/*"]
 
-requires=['mako',
+requires=['mako', 'requests', 'pyserial', 'pylzma'
          ]
 
 if sys.version_info < (3,3):

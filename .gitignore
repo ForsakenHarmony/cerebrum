@@ -20,3 +20,10 @@ lib
 .zsh
 */__pycache__
 makefile
+
+/build*
+/dist
+/venv
+*.egg-info
+
+

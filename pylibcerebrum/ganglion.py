@@ -8,10 +8,10 @@
 
 import json
 import struct
-try:
-	import lzma
-except:
-	import pylzma as lzma
+#try:
+	#import lzma
+#except
+import pylzma as lzma
 import time
 import serial
 from pylibcerebrum.NotifyList import NotifyList
